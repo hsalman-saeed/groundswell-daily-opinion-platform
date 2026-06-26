@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Target } from 'lucide-react'
 import { CountdownTimer } from '@/components/countdown-timer'
 import { EmpathyScoreRing } from '@/components/empathy-score-ring'
 import { PredictionSlider } from '@/components/prediction-slider'
@@ -202,8 +202,16 @@ export function HomeGame() {
                       <p className="text-sm text-foreground">
                         <span className="font-semibold">{p.label}</span> — You predicted{' '}
                         {p.predicted}%, actual was {p.actual}% — {p.error} point error —{' '}
-                        <span className={strong ? 'text-[var(--emerald)]' : 'text-amber'}>
-                          {strong ? '🎯 Strong' : 'Decent'}
+                        <span
+                          className={`inline-flex items-center gap-1 align-middle font-medium ${strong ? 'text-[var(--emerald)]' : 'text-amber'}`}
+                        >
+                          {strong ? (
+                            <>
+                              <Target className="size-3.5" aria-hidden="true" /> Strong
+                            </>
+                          ) : (
+                            'Decent'
+                          )}
                         </span>
                       </p>
                     </div>

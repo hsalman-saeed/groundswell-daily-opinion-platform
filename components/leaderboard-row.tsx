@@ -1,6 +1,11 @@
+import { Medal } from 'lucide-react'
 import type { LeaderboardEntry } from '@/lib/mock-data'
 
-const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' }
+const MEDAL_COLORS: Record<number, string> = {
+  1: 'text-amber',
+  2: 'text-muted-foreground',
+  3: 'text-[var(--bronze)]',
+}
 
 export function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
   const { rank, username, flag, country, questions, avgError, empathyScore, bestSegment, isCurrentUser } =
@@ -14,8 +19,12 @@ export function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
       }`}
     >
       {/* Rank */}
-      <div className="text-center text-base font-bold tabular-nums text-foreground">
-        {MEDALS[rank] ?? `#${rank}`}
+      <div className="flex justify-center text-base font-bold tabular-nums text-foreground">
+        {topThree ? (
+          <Medal className={`size-5 ${MEDAL_COLORS[rank]}`} aria-label={`Rank ${rank}`} />
+        ) : (
+          `#${rank}`
+        )}
       </div>
 
       {/* Player */}
