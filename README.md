@@ -39,43 +39,6 @@ This project uses a hybrid database architecture that leverages two AWS database
 <img width="1546" height="1017" alt="groundwell architecture" src="https://github.com/user-attachments/assets/b47c3089-4037-481b-abc8-500f1fe82b22" />
 
 
-```
-                          [System Architecture]
-
-                    +-------------------------------+
-                    |            Players            |
-                    +-------------------------------+
-                                    │
-                                    ▼
-                    +-------------------------------+
-                    |        Vercel (Next.js)       |
-                    +-------------------------------+
-                       /            │              \
-                      /             │               \
-         (Vote Submit)             /                 \ (Relational Reads
-              │                   /                   │  & Aggregates)
-              ▼                  /                    ▼
-      +---------------+         /             +----------------+
-      |  DynamoDB     |        /              |  Aurora DSQL   |
-      |  (Votes &     |       /               |  (Profiles,    |
-      |   Counters)   |      /                |   Predictions, |
-      +---------------+     /                 |   Results)     |
-              ▲            /                  +----------------+
-              │           /                           ▲
-              │ (Read    /                            │
-              │  Counters)                            │ (Finalize
-              │         /                             │  & Score)
-              │        /                              │
-           +─────────────────────────────────────────────+
-           |           Cron (Nightly Pipeline)           |
-           +─────────────────────────────────────────────+
-                                    ▲
-                                    │
-           +─────────────────────────────────────────────+
-           |           Admin (Bedrock Questions)         |
-           +─────────────────────────────────────────────+
-```
-
 ### Amazon DynamoDB — Vote Ingestion
 
 Groundswell stores individual vote receipts and real-time demographic segment counters in a single DynamoDB table. The table utilizes a single-table design with prefix-based partition keys:
@@ -83,34 +46,16 @@ Groundswell stores individual vote receipts and real-time demographic segment co
 1.  **Vote Item:** `PK: VOTE#<questionId>`, `SK: PLAYER#<playerId>` (Stores the player's vote to prevent double voting).
 2.  **Counter Item:** `PK: COUNTER#<questionId>`, `SK: SEG#<segmentValue>` (e.g., `SEG#country_DE`, `SEG#age_18-24`; stores atomic `yes_count` and `no_count` attributes).
 
-During peak hours when voting traffic spikes, thousands of players submit opinions simultaneously. In a relational database, incrementing counters requires row-level locking, causing concurrent transactions to wait and leading to query queue latency. DynamoDB resolves this by providing lock-free updates at scale via `UpdateItem` with an `ADD` operation on numeric attributes:
+During peak hours when voting traffic spikes, thousands of players submit opinions simultaneously. In a relational database, incrementing counters requires row-level locking, causing concurrent transactions to wait and leading to query queue latency. DynamoDB resolves this by providing lock-free updates at scale via `UpdateItem` with an `ADD` operation on numeric attributes.
 
-```typescript
-const command = new UpdateCommand({
-  TableName: process.env.DYNAMODB_TABLE_NAME,
-  Key: { pk: `COUNTER#${questionId}`, sk: `SEG#${segment}` },
-  UpdateExpression: 'ADD yes_count :val', // or no_count
-  ExpressionAttributeValues: { ':val': 1 },
-});
-```
+To prevent players from submitting multiple votes, Groundswell uses a conditional write on the vote item type. If two requests arrive from the same player simultaneously, the database rejects the second write before the application consumes computation cycles.
 
-To prevent players from submitting multiple votes, Groundswell uses a conditional write on the vote item type. If two requests arrive from the same player simultaneously, the database rejects the second write before the application consumes computation cycles:
-
-```
-ConditionExpression: "attribute_not_exists(pk) AND attribute_not_exists(sk)"
-```
 
 ### Amazon Aurora DSQL — Aggregates and Rankings
 
 While DynamoDB handles write throughput, relational query workloads are directed to Amazon Aurora DSQL. DSQL manages structured relational tables covering player profiles, questions, computed global aggregates, predictions, and round results.
 
-Computing the global leaderboard rankings requires ranking players dynamically by multiple parameters. We execute this using SQL window functions:
-
-```sql
-SELECT player_id, username, avg_empathy_score, avg_prediction_error,
-       RANK() OVER (ORDER BY avg_empathy_score DESC, avg_prediction_error ASC NULLS LAST) as global_rank
-FROM players WHERE total_questions_answered > 0
-```
+Computing the global leaderboard rankings requires ranking players dynamically by multiple parameters. We execute this using SQL window functions.
 
 Doing this in a NoSQL database would require scanning all player records and sorting them in application memory, which becomes inefficient as the player base grows. Similarly, the nightly scoring pipeline joins the `user_predictions` table with the `question_aggregates` table to calculate absolute error scores for all players in a single SQL operation.
 
