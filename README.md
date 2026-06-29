@@ -36,6 +36,9 @@ You can sign in using any of the following pre-seeded developer/player accounts 
 
 This project uses a hybrid database architecture that leverages two AWS databases provisioned through the Vercel Marketplace, each selected for its alignment with a distinct data access pattern. The choices were made because the performance characteristics and constraints of the application's workloads are incompatible with a single database system.
 
+<img width="1546" height="1017" alt="groundwell architecture" src="https://github.com/user-attachments/assets/b47c3089-4037-481b-abc8-500f1fe82b22" />
+
+
 ```
                           [System Architecture]
 
