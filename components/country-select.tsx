@@ -28,7 +28,7 @@ export const COUNTRIES = [
   { code: 'US', flag: '🇺🇸', name: 'United States' },
 ].sort((a, b) => a.name.localeCompare(b.name))
 
-export function CountrySelect() {
+export function CountrySelect({ onSelect }: { onSelect?: (country: typeof COUNTRIES[number] | null) => void }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<(typeof COUNTRIES)[number] | null>(null)
@@ -85,6 +85,7 @@ export function CountrySelect() {
                     setSelected(c)
                     setOpen(false)
                     setQuery('')
+                    if (onSelect) onSelect(c)
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-surface"
                 >

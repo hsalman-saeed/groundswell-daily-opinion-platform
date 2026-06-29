@@ -3,6 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
+import { SessionProvider } from 'next-auth/react'
+
 const inter = Inter({ variable: '--font-geist-sans', subsets: ['latin'] })
 
 export const metadata: Metadata = {
@@ -24,9 +26,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`light ${inter.variable}`}>
-      <body className="bg-background font-sans antialiased">
-        {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+      <body className="bg-background font-sans antialiased" suppressHydrationWarning>
+
+        <SessionProvider>
+          {children}
+          {process.env.NODE_ENV === 'production' && <Analytics />}
+        </SessionProvider>
       </body>
     </html>
   )

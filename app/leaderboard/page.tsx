@@ -1,26 +1,97 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import { Loader2 } from 'lucide-react'
 import { NavBar } from '@/components/nav-bar'
 import { LeaderboardRow } from '@/components/leaderboard-row'
 import { SplitBar } from '@/components/split-bar'
 import { WeeklyInsightCard } from '@/components/weekly-insight-card'
-import { LEADERBOARD, TODAY_QUESTION } from '@/lib/mock-data'
 
 const TABS = ['Global', 'My Country', 'My Age Group'] as const
 type Tab = (typeof TABS)[number]
 
-const PAGE_SIZE = 8
-
 export default function LeaderboardPage() {
-  const [tab, setTab] = useState<Tab>('Global')
-  const [visible, setVisible] = useState(PAGE_SIZE)
+  const { data: session, status: authStatus } = useSession()
+  const user = session?.user as any
 
-  const rows = LEADERBOARD.slice(0, visible)
-  const hasMore = visible < LEADERBOARD.length
-  // Ensure the current user is always reachable; pin if outside the visible set.
-  const currentUser = LEADERBOARD.find((e) => e.isCurrentUser)
-  const currentUserVisible = rows.some((e) => e.isCurrentUser)
+  const [tab, setTab] = useState<Tab>('Global')
+  const [loading, setLoading] = useState(true)
+  const [rankings, setRankings] = useState<any[]>([])
+  const [currentPlayerRank, setCurrentPlayerRank] = useState<any>(null)
+  const [totalPlayers, setTotalPlayers] = useState(0)
+  const [todayQuestion, setTodayQuestion] = useState<any>(null)
+
+  // Load today's question for display
+  useEffect(() => {
+    fetch('/api/today')
+      .then((res) => {
+        if (res.ok) return res.json()
+        return null
+      })
+      .then((data) => {
+        if (data && data.question) {
+          setTodayQuestion(data.question)
+        }
+      })
+      .catch((err) => console.error('Error loading question for leaderboard:', err))
+  }, [])
+
+  // Load leaderboard rankings
+  useEffect(() => {
+    async function loadRankings() {
+      setLoading(true)
+      try {
+        let url = '/api/leaderboard?scope=global'
+
+        if (tab === 'My Country') {
+          if (user?.country_code) {
+            url = `/api/leaderboard?scope=country&filter=${user.country_code}`
+          } else {
+            setRankings([])
+            setTotalPlayers(0)
+            setLoading(false)
+            return
+          }
+        } else if (tab === 'My Age Group') {
+          if (user?.age_bucket) {
+            url = `/api/leaderboard?scope=age_group&filter=${user.age_bucket}`
+          } else {
+            setRankings([])
+            setTotalPlayers(0)
+            setLoading(false)
+            return
+          }
+        }
+
+        const res = await fetch(url)
+        if (res.ok) {
+          const data = await res.json()
+          setRankings(data.rankings || [])
+          setCurrentPlayerRank(data.current_player_rank)
+          setTotalPlayers(data.total_players || 0)
+        }
+      } catch (err) {
+        console.error('Error loading rankings:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (authStatus !== 'loading') {
+      loadRankings()
+    }
+  }, [tab, user?.country_code, user?.age_bucket, authStatus])
+
+  const isLoggedIn = authStatus === 'authenticated'
+  const isTabRestricted = tab !== 'Global' && !isLoggedIn
+  const currentUserVisible = rankings.some((e) => e.isCurrentUser || e.player_id === user?.player_id)
+
+  // Calculate percentages for question block
+  const yesPct = todayQuestion?.global_yes_pct ?? 50
+  const noPct = todayQuestion?.global_no_pct ?? 50
+  const participantsCount = todayQuestion?.total_participants ?? 0
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,59 +121,82 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Today's question context */}
-        <div className="mt-6 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <p className="truncate text-sm font-medium text-foreground">{TODAY_QUESTION.text}</p>
-          <div className="mt-3">
-            <SplitBar yes={TODAY_QUESTION.globalYes} no={TODAY_QUESTION.globalNo} height={10} />
+        {todayQuestion && (
+          <div className="mt-6 rounded-xl border border-border bg-card p-4 shadow-sm">
+            <p className="truncate text-sm font-medium text-foreground">{todayQuestion.question_text}</p>
+            <div className="mt-3">
+              <SplitBar yes={yesPct} no={noPct} height={10} />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                <span className="font-semibold text-primary">{yesPct}%</span> Yes ·{' '}
+                <span className="font-semibold text-[var(--negative)]">{noPct}%</span> No
+              </span>
+              <span>{participantsCount.toLocaleString()} players answered today</span>
+            </div>
           </div>
-          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              <span className="font-semibold text-primary">{TODAY_QUESTION.globalYes}%</span> Yes ·{' '}
-              <span className="font-semibold text-[var(--negative)]">{TODAY_QUESTION.globalNo}%</span>{' '}
-              No
-            </span>
-            <span>{TODAY_QUESTION.participants.toLocaleString()} players answered today</span>
-          </div>
-        </div>
+        )}
 
-        {/* Table */}
-        <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          {/* Header */}
-          <div className="hidden grid-cols-[3rem_minmax(0,1fr)_8rem_5rem_6rem_6rem] gap-4 border-b border-border bg-surface px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
-            <span className="text-center">Rank</span>
-            <span>Player</span>
-            <span>Country</span>
-            <span className="text-right">Questions</span>
-            <span className="text-right">Accuracy</span>
-            <span className="text-right">Empathy</span>
-          </div>
-
-          <div className="divide-y divide-border">
-            {rows.map((entry) => (
-              <LeaderboardRow key={entry.rank} entry={entry} />
-            ))}
-
-            {/* Pinned current user if outside visible window */}
-            {!currentUserVisible && currentUser && (
-              <>
-                <div className="px-4 py-2 text-center text-xs tracking-widest text-muted-foreground">
-                  — — —
-                </div>
-                <LeaderboardRow entry={currentUser} />
-              </>
-            )}
-          </div>
-        </div>
-
-        {hasMore && (
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={() => setVisible((v) => v + PAGE_SIZE)}
-              className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+        {/* Table content / Loading / Restriction message */}
+        {isTabRestricted ? (
+          <div className="mt-8 rounded-xl border border-dashed border-border bg-card p-8 text-center">
+            <p className="font-semibold text-foreground">Sign In Required</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Please sign in to see rankings within your country or age group.
+            </p>
+            <Link
+              href="/signin"
+              className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary-hover"
             >
-              Show more
-            </button>
+              Sign In
+            </Link>
+          </div>
+        ) : loading ? (
+          <div className="mt-12 flex items-center justify-center">
+            <Loader2 className="size-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            {/* Header */}
+            <div className="hidden grid-cols-[3rem_minmax(0,1fr)_8rem_5rem_6rem_6rem] gap-4 border-b border-border bg-surface px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
+              <span className="text-center">Rank</span>
+              <span>Player</span>
+              <span>Country</span>
+              <span className="text-right">Questions</span>
+              <span className="text-right">Accuracy</span>
+              <span className="text-right">Empathy</span>
+            </div>
+
+            <div className="divide-y divide-border">
+              {rankings.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No ranked players yet in this category. Be the first!
+                </div>
+              ) : (
+                rankings.map((entry) => {
+                  const isCurrent = entry.player_id === user?.player_id
+                  return (
+                    <LeaderboardRow
+                      key={entry.player_id}
+                      entry={{
+                        ...entry,
+                        isCurrentUser: isCurrent,
+                      }}
+                    />
+                  )
+                })
+              )}
+
+              {/* Pinned current user if outside visible window */}
+              {!currentUserVisible && currentPlayerRank && (
+                <>
+                  <div className="px-4 py-2 text-center text-xs tracking-widest text-muted-foreground">
+                    — — —
+                  </div>
+                  <LeaderboardRow entry={currentPlayerRank} />
+                </>
+              )}
+            </div>
           </div>
         )}
 

@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { CountrySelect } from '@/components/country-select'
 
 function getStrength(pw: string): { level: number; label: string; color: string } {
@@ -19,9 +20,53 @@ function getStrength(pw: string): { level: number; label: string; color: string 
 }
 
 export default function SignUpPage() {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [country, setCountry] = useState<{ code: string; name: string } | null>(null)
+  const [ageBucket, setAgeBucket] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
   const strength = getStrength(password)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!username || !email || !password || !country || !ageBucket) {
+      setError('Please fill in all fields')
+      return
+    }
+    setError('')
+    setLoading(true)
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          country_code: country.code,
+          country_name: country.name,
+          age_bucket: ageBucket,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Something went wrong')
+      }
+
+      router.push('/signin?registered=true')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create account')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
@@ -34,7 +79,13 @@ export default function SignUpPage() {
           Predict how the world thinks. Track your understanding.
         </p>
 
-        <form className="mt-6 flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
+        {error && (
+          <div className="mt-4 rounded-lg bg-[var(--negative)]/10 px-4 py-3 text-sm text-[var(--negative)] font-medium">
+            {error}
+          </div>
+        )}
+
+        <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
           {/* Username */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="username" className="text-sm font-medium text-foreground">
@@ -43,6 +94,9 @@ export default function SignUpPage() {
             <input
               id="username"
               type="text"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               placeholder="your_handle"
               className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:bg-blue-soft/40"
             />
@@ -57,6 +111,9 @@ export default function SignUpPage() {
             <input
               id="email"
               type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
               placeholder="you@example.com"
               className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:bg-blue-soft/40"
@@ -72,6 +129,7 @@ export default function SignUpPage() {
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -110,14 +168,36 @@ export default function SignUpPage() {
           {/* Country */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-foreground">Country</label>
-            <CountrySelect />
+            <CountrySelect onSelect={(c) => setCountry(c)} />
+          </div>
+
+          {/* Age Bucket */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="age_bucket" className="text-sm font-medium text-foreground">
+              Age Range
+            </label>
+            <select
+              id="age_bucket"
+              required
+              value={ageBucket}
+              onChange={(e) => setAgeBucket(e.target.value)}
+              className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-primary"
+            >
+              <option value="">Select your age range</option>
+              <option value="18-24">18–24</option>
+              <option value="25-34">25–34</option>
+              <option value="35-49">35–49</option>
+              <option value="50-64">50–64</option>
+              <option value="65+">65+</option>
+            </select>
           </div>
 
           <button
             type="submit"
-            className="mt-2 w-full rounded-lg bg-primary py-2.5 text-sm text-primary-foreground transition-all hover:bg-primary-hover active:scale-[0.98]"
+            disabled={loading}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm text-primary-foreground transition-all hover:bg-primary-hover active:scale-[0.98] disabled:opacity-50"
           >
-            Create Account
+            {loading ? <Loader2 className="size-4 animate-spin" /> : 'Create Account'}
           </button>
         </form>
 

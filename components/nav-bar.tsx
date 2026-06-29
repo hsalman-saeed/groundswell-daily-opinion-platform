@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Flame, Menu, X, ChevronDown } from 'lucide-react'
-import { CURRENT_USER, TODAY_QUESTION } from '@/lib/mock-data'
+import { useSession, signOut } from 'next-auth/react'
 
 const NAV_LINKS = [
   { href: '/', label: 'Today' },
@@ -14,13 +14,34 @@ const NAV_LINKS = [
 
 export function NavBar({ showTopicPill = false }: { showTopicPill?: boolean }) {
   const pathname = usePathname()
+  const { data: session, status } = useSession()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [category, setCategory] = useState("Technology")
+
+  const isLoggedIn = status === 'authenticated'
+  const user = session?.user as any
+  const username = user?.username || user?.name || 'Guest'
+  const initial = username.charAt(0).toUpperCase()
+  const streak = user?.current_streak ?? 0
 
   useEffect(() => {
     setDrawerOpen(false)
     setMenuOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    if (showTopicPill) {
+      fetch('/api/today')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.question?.category) {
+            setCategory(data.question.category)
+          }
+        })
+        .catch((err) => console.error('Error fetching category:', err))
+    }
+  }, [showTopicPill])
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
@@ -54,54 +75,66 @@ export function NavBar({ showTopicPill = false }: { showTopicPill?: boolean }) {
         {showTopicPill && (
           <div className="absolute left-1/2 hidden -translate-x-1/2 lg:block">
             <span className="rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
-              Today: {TODAY_QUESTION.category}
+              Today: {category}
             </span>
           </div>
         )}
 
         {/* Right: streak + user */}
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-sm font-semibold text-amber">
-            <Flame className="size-4" aria-hidden="true" />
-            {CURRENT_USER.streak}
-          </span>
-
-          <div className="relative hidden md:block">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-            >
-              <span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                {CURRENT_USER.initial}
+          {isLoggedIn ? (
+            <>
+              <span className="flex items-center gap-1 text-sm font-semibold text-amber">
+                <Flame className="size-4" aria-hidden="true" />
+                {streak}
               </span>
-              <span className="text-sm font-medium text-foreground">{CURRENT_USER.username}</span>
-              <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
-            </button>
-            {menuOpen && (
-              <div
-                role="menu"
-                className="gs-fade-in absolute right-0 mt-2 w-44 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-md"
-              >
-                <Link
-                  href="/stats"
-                  role="menuitem"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-surface"
+
+              <div className="relative hidden md:block">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
                 >
-                  My Stats
-                </Link>
-                <Link
-                  href="/signin"
-                  role="menuitem"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-surface"
-                >
-                  Sign Out
-                </Link>
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                    {initial}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{username}</span>
+                  <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
+                </button>
+                {menuOpen && (
+                  <div
+                    role="menu"
+                    className="gs-fade-in absolute right-0 mt-2 w-44 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-md"
+                  >
+                    <Link
+                      href="/stats"
+                      role="menuitem"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-surface"
+                    >
+                      My Stats
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => signOut({ callbackUrl: '/signin' })}
+                      role="menuitem"
+                      className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-surface"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <Link
+              href="/signin"
+              className="hidden rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary-hover md:block"
+            >
+              Sign In
+            </Link>
+          )}
 
           {/* Mobile hamburger */}
           <button
@@ -136,17 +169,19 @@ export function NavBar({ showTopicPill = false }: { showTopicPill?: boolean }) {
               </button>
             </div>
 
-            <div className="mt-6 flex items-center gap-3 rounded-lg bg-surface p-3">
-              <span className="flex size-10 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
-                {CURRENT_USER.initial}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-foreground">{CURRENT_USER.username}</p>
-                <p className="flex items-center gap-1 text-xs text-amber">
-                  <Flame className="size-3" /> {CURRENT_USER.streak} day streak
-                </p>
+            {isLoggedIn && (
+              <div className="mt-6 flex items-center gap-3 rounded-lg bg-surface p-3">
+                <span className="flex size-10 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
+                  {initial}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{username}</p>
+                  <p className="flex items-center gap-1 text-xs text-amber">
+                    <Flame className="size-3" /> {streak} day streak
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-4 flex flex-col gap-1">
               {NAV_LINKS.map((link) => {
@@ -165,12 +200,22 @@ export function NavBar({ showTopicPill = false }: { showTopicPill?: boolean }) {
                   </Link>
                 )
               })}
-              <Link
-                href="/signin"
-                className="rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-surface"
-              >
-                Sign Out
-              </Link>
+              {isLoggedIn ? (
+                <button
+                  type="button"
+                  onClick={() => signOut({ callbackUrl: '/signin' })}
+                  className="rounded-md px-3 py-2.5 text-left text-sm text-foreground hover:bg-surface"
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <Link
+                  href="/signin"
+                  className="rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-surface font-semibold text-primary"
+                >
+                  Sign In
+                </Link>
+              )}
             </div>
           </div>
         </div>

@@ -7,10 +7,19 @@ const MEDAL_COLORS: Record<number, string> = {
   3: 'text-[var(--bronze)]',
 }
 
-export function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
-  const { rank, username, flag, country, questions, avgError, empathyScore, bestSegment, isCurrentUser } =
-    entry
+export function LeaderboardRow({ entry }: { entry: any }) {
+  const rank = entry.rank ?? 0
+  const username = entry.username || 'Anonymous'
+  const flag = entry.flag || '🌍'
+  const country = entry.country || entry.country_name || 'Global'
+  const questions = entry.questions ?? entry.total_questions_answered ?? 0
+  const avgError = entry.avgError ?? entry.avg_prediction_error ?? 0
+  const empathyScore = entry.empathyScore ?? entry.avg_empathy_score ?? 0
+  const bestSegment = entry.bestSegment || 'Global'
+  const isCurrentUser = !!entry.isCurrentUser
+
   const topThree = rank <= 3
+  const errorVal = typeof avgError === 'number' ? avgError : parseFloat(String(avgError)) || 0
 
   return (
     <div
@@ -53,7 +62,7 @@ export function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
 
       {/* Accuracy */}
       <div className="hidden text-right text-sm tabular-nums text-muted-foreground sm:block">
-        ±{avgError.toFixed(1)} pts
+        ±{errorVal.toFixed(1)} pts
       </div>
 
       {/* Empathy score */}
