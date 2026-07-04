@@ -118,7 +118,7 @@ Daily opinion questions are generated using Amazon Bedrock's Nova Lite model (`u
     *   `lib/db/dynamo.ts` — DynamoDB document client handling the single-table schema.
     *   `lib/bedrock.ts` — Bedrock runtime connection client.
     *   `lib/finalize-question.ts` — Core batch scoring and aggregate calculation logic.
-*   `docs/` — Documentation, including research files, plans, and blog posts.
+
 
 ---
 
