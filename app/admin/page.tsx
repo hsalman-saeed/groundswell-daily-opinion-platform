@@ -167,14 +167,25 @@ export default function AdminPage() {
   const pastQuestions = questions.filter((q) => q.is_finalized)
   const unfinalizedQuestions = questions.filter((q) => !q.is_finalized)
 
-  const formatDate = (d: string) => {
+  const formatDate = (d: string | Date | null | undefined) => {
+    if (!d) return '—';
     try {
-      return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+      let date: Date;
+      if (d instanceof Date) {
+        date = d;
+      } else if (typeof d === 'string') {
+        // Handle "YYYY-MM-DD", "YYYY-MM-DDT..." or full ISO strings
+        date = d.includes('T') ? new Date(d) : new Date(d + 'T00:00:00');
+      } else {
+        return String(d);
+      }
+      if (isNaN(date.getTime())) return String(d);
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-      })
+      });
     } catch {
-      return d
+      return String(d);
     }
   }
 

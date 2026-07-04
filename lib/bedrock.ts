@@ -25,21 +25,16 @@ export interface QuestionCandidate {
 }
 
 // ---------------------------------------------------------------------------
-// Client — lazy singleton with static credentials
+// Client — fresh per invocation to avoid stale credentials
 // ---------------------------------------------------------------------------
-let _client: BedrockRuntimeClient | null = null;
-
 function getClient(): BedrockRuntimeClient {
-  if (!_client) {
-    _client = new BedrockRuntimeClient({
-      region: process.env.BEDROCK_REGION || 'us-east-1',
-      credentials: {
-        accessKeyId: process.env.BEDROCK_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.BEDROCK_SECRET_ACCESS_KEY!,
-      },
-    });
-  }
-  return _client;
+  return new BedrockRuntimeClient({
+    region: (process.env.BEDROCK_REGION || 'us-east-1').trim(),
+    credentials: {
+      accessKeyId: (process.env.BEDROCK_ACCESS_KEY_ID || '').trim(),
+      secretAccessKey: (process.env.BEDROCK_SECRET_ACCESS_KEY || '').trim(),
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
