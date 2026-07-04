@@ -36,16 +36,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // Confirm question exists, is active, and release_date is today
+    // Confirm question exists and is active
     const qCheck = await query(
       `SELECT question_id FROM questions 
-       WHERE question_id = $1 AND is_active = true AND release_date = CURRENT_DATE`,
+       WHERE question_id = $1 AND is_active = true AND is_finalized = false`,
       [question_id]
     )
 
     if (qCheck.rows.length === 0) {
       return NextResponse.json(
-        { error: "Question is either not active, not released today, or does not exist" },
+        { error: "Question is not active or does not exist" },
         { status: 400 }
       )
     }

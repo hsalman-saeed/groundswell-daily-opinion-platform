@@ -5,18 +5,22 @@ import { Loader2 } from 'lucide-react'
 import type { VoteChoice } from '@/lib/mock-data'
 
 type VoteButtonSetProps = {
-  onVote: (choice: VoteChoice) => void
+  onVote: (choice: VoteChoice) => void | Promise<void>
   disabled?: boolean
 }
 
 export function VoteButtonSet({ onVote, disabled }: VoteButtonSetProps) {
   const [pending, setPending] = useState<VoteChoice | null>(null)
 
-  function handleVote(choice: VoteChoice) {
+  async function handleVote(choice: VoteChoice) {
     if (pending || disabled) return
     setPending(choice)
-    // Simulate the vote ingestion round-trip (DynamoDB in the next phase).
-    setTimeout(() => onVote(choice), 650)
+    try {
+      await onVote(choice)
+    } catch {
+      // Reset spinner on failure so user can retry
+      setPending(null)
+    }
   }
 
   const locked = disabled || pending !== null
